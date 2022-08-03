@@ -58,17 +58,28 @@ public class Main {
         String transformSpec = "{\"type\":\"jolt\",\"joltSpec\":[{\"operation\":\"shift\",\"spec\":{\"k1\":\"k1\",\"time\":\"observationDateTime\",\"deviceId\":\"id\"}},{\"operation\":\"modify-overwrite-beta\",\"spec\":{\"id\":\"=concat('datakaveri.org/123/', id)\"}}]}";
         JoltTransformer trans = new JoltTransformer(transformSpec);
 
-        DataStream<Message> dataSource = so.keyBy((Message msg) -> msg.key).process(new GenericProcessFunction(trans, dedup));
+//        DataStream<Message> dataSource = so.keyBy((Message msg) -> msg.key).process(new GenericProcessFunction(trans, dedup));
 
-        SingleOutputStreamOperator output = dataSource
+        SingleOutputStreamOperator<Message> out = so
+                .keyBy((Message msg) -> msg.key)
+                .process(new GenericProcessFunction(trans, dedup))
+                .uid("GenericProcessFunction")
+                .name("Generic Process Function")
+//                .keyBy((Message msg) -> msg.key)
+                .connect(ruleBroadcastStream)
+                .process(new RuleFunction())
+                .uid("RuleSourceFunction")
+                .name("Rule Source Function")
+//                .keyBy((Message msg) -> msg.key)
                 .connect(ruleBroadcastStream)
                 .process(new RuleExecutorFunction())
-//                .keyBy(Keyed::getKey)
-//                .connect(ruleBroadcastStream)
-//                .process(new RuleFunction())
+                .uid("RuleExecutorFunction")
+                .name("Rule Executor Function")
                 .setParallelism(1);
 
-        output.addSink(new PrintSinkFunction<>());
+
+
+        out.addSink(new PrintSinkFunction<>());
         try {
             env.getConfig().setGlobalJobParameters(parameters);
             env.execute();
