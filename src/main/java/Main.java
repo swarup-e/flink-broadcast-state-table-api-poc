@@ -60,18 +60,19 @@ public class Main {
 
         SingleOutputStreamOperator<Message> out = so
                 .keyBy((Message msg) -> msg.key)
-                .process(new GenericProcessFunction(trans, dedup))
-                .uid("GenericProcessFunction")
-                .name("Generic Process Function")
+//                .process(new GenericProcessFunction(trans, dedup))
+//                .uid("GenericProcessFunction")
+//                .name("Generic Process Function")
+//                .keyBy((Message msg) -> msg.key)
                 .connect(ruleBroadcastStream)
                 .process(new RuleFunction())
                 .uid("RuleSourceFunction")
                 .name("Rule Source Function")
-                .keyBy((Keyed::getKey))
-                .connect(ruleBroadcastStream)
-                .process(new RuleExecutorFunction())
-                .uid("RuleExecutorFunction")
-                .name("Rule Executor Function")
+//                .keyBy((Keyed::getKey))
+//                .connect(ruleBroadcastStream)
+//                .process(new RuleExecutorFunction())
+//                .uid("RuleExecutorFunction")
+//                .name("Rule Executor Function")
                 .setParallelism(1);
 
 
