@@ -1,3 +1,4 @@
+import datatypes.CustomMessage;
 import datatypes.Keyed;
 import datatypes.Rule;
 import in.org.iudx.adaptor.datatypes.Message;
@@ -16,23 +17,7 @@ import org.apache.flink.util.Collector;
 import java.util.Set;
 
 
-public class RuleFunction extends KeyedBroadcastProcessFunction<String, Message, Rule, Message> {
-
-//    @Override
-//    public void processElement(Message message, BroadcastProcessFunction<Message, Rule, Keyed<Message, String>>.ReadOnlyContext readOnlyContext, Collector<Keyed<Message, String>> collector) throws Exception {
-//        ReadOnlyBroadcastState ruleState = readOnlyContext.getBroadcastState(Main.Descriptors.ruleMapStateDescriptor);
-//
-//        for (Object ruleObject : ruleState.immutableEntries()) {
-//            final Rule rule = new Rule(ruleObject.toString());
-//            collector.collect(new Keyed<Message, String>(message, message.key));
-//        }
-//    }
-//
-//    @Override
-//    public void processBroadcastElement(Rule rule, BroadcastProcessFunction<Message, Rule, Keyed<Message, String>>.Context context, Collector<Keyed<Message, String>> collector) throws Exception {
-//        BroadcastState<String, Rule> broadcastState = context.getBroadcastState(Main.Descriptors.ruleMapStateDescriptor);
-//        broadcastState.put(rule.sqlQuery, rule);
-//    }
+public class RuleFunction extends KeyedBroadcastProcessFunction<String, Message, Rule, CustomMessage> {
 
     private transient MapState<Long, Set<Message>> windowState;
 
@@ -44,19 +29,25 @@ public class RuleFunction extends KeyedBroadcastProcessFunction<String, Message,
         windowState = getRuntimeContext().getMapState(windowStateDescriptor);
     }
 
-
     @Override
-    public void processElement(Message message, KeyedBroadcastProcessFunction<String, Message, Rule, Message>.ReadOnlyContext readOnlyContext, Collector<Message> collector) throws Exception {
+    public void processElement(Message message, KeyedBroadcastProcessFunction<String, Message, Rule, CustomMessage>.ReadOnlyContext readOnlyContext, Collector<CustomMessage> collector) throws Exception {
         ReadOnlyBroadcastState ruleState = readOnlyContext.getBroadcastState(Main.Descriptors.ruleMapStateDescriptor);
 
         for (Object ruleObject : ruleState.immutableEntries()) {
             final Rule rule = new Rule(ruleObject.toString());
-            collector.collect(message);
+            CustomMessage customMessage = new CustomMessage();
+            customMessage.setRuleString(rule.sqlQuery);
+            customMessage.setSqlTimestamp(message.timestamp);
+            customMessage.setResponseBody(message.body);
+            customMessage.setKey(message.key);
+            customMessage.setEventTimestamp(message.timestamp);
+            customMessage.setEventTimeAsString(message.timestampString);
+            collector.collect(customMessage);
         }
     }
 
     @Override
-    public void processBroadcastElement(Rule rule, KeyedBroadcastProcessFunction<String, Message, Rule, Message>.Context context, Collector<Message> collector) throws Exception {
+    public void processBroadcastElement(Rule rule, KeyedBroadcastProcessFunction<String, Message, Rule, CustomMessage>.Context context, Collector<CustomMessage> collector) throws Exception {
         BroadcastState<String, Rule> broadcastState = context.getBroadcastState(Main.Descriptors.ruleMapStateDescriptor);
         broadcastState.put(rule.sqlQuery, rule);
     }
