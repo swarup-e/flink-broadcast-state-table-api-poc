@@ -47,12 +47,12 @@ public class Main {
         env.enableCheckpointing(1000 * 100 * 1000);
 
         // Table Env
-        StreamTableEnvironment tableEnv = StreamTableEnvironment.create(env);
-        TableConfig tableConfig = tableEnv.getConfig();
-        // set low-level key-value options
-        tableConfig.set("table.exec.mini-batch.enabled", "true");
-        tableConfig.set("table.exec.mini-batch.allow-latency", "5 s");
-        tableConfig.set("table.exec.mini-batch.size", "5000");
+//        StreamTableEnvironment tableEnv = StreamTableEnvironment.create(env);
+//        TableConfig tableConfig = tableEnv.getConfig();
+//        // set low-level key-value options
+//        tableConfig.set("table.exec.mini-batch.enabled", "true");
+//        tableConfig.set("table.exec.mini-batch.allow-latency", "5 s");
+//        tableConfig.set("table.exec.mini-batch.size", "5000");
 
 
         // RMQ Source for SQL Queries
@@ -77,7 +77,7 @@ public class Main {
         JoltTransformer trans = new JoltTransformer(transformSpec);
 
 
-        SingleOutputStreamOperator<CustomMessage> out = so
+        SingleOutputStreamOperator<String> out = so
                 .keyBy((Message msg) -> msg.key)
 //                .process(new GenericProcessFunction(trans, dedup))
 //                .uid("GenericProcessFunction")
@@ -88,7 +88,7 @@ public class Main {
                 .uid("RuleSourceFunction")
                 .name("Rule Source Function")
                 .assignTimestampsAndWatermarks(WatermarkStrategy.forMonotonousTimestamps())
-//                .keyBy((CustomMessage msg) -> msg.key)
+//                .keyBy((Keyed::getKey))
 //                .connect(ruleBroadcastStream)
 //                .process(new RuleExecutorFunction())
 //                .uid("RuleExecutorFunction")
@@ -96,39 +96,45 @@ public class Main {
                 .setParallelism(1);
 
 
-        Table inputTable = tableEnv.fromDataStream(
-                out,
-                Expressions.$("body"),
-                Expressions.$("key"),
-                Expressions.$("timestamp"),
-                Expressions.$("timestampString"),
-                Expressions.$("ruleString"),
-                Expressions.$("sqlTimestamp").rowtime()
-        ).as("data", "key", "timestamp", "timestampString");
+//        Table inputTable = tableEnv.fromDataStream(
+//                out,
+//                Expressions.$("body"),
+//                Expressions.$("key"),
+//                Expressions.$("timestamp"),
+//                Expressions.$("timestampString"),
+//                Expressions.$("ruleString"),
+//                Expressions.$("sqlTimestamp").rowtime()
+//        ).as("data", "key", "timestamp", "timestampString");
 //
-        Table tableResult = inputTable
-                .window(Slide
-                        .over(Expressions.lit(30).seconds())
-                        .every(Expressions.lit(10).seconds())
-                        .on(Expressions.$("sqlTimestamp"))
-                        .as("w"))
-                .groupBy(Expressions.$("w"), Expressions.$("data"), Expressions.$("key"))
-                .select(Expressions.$("*"));
+//        Table tableResult = inputTable
+//                .window(Slide
+//                        .over(Expressions.lit(30).seconds())
+//                        .every(Expressions.lit(10).seconds())
+//                        .on(Expressions.$("sqlTimestamp"))
+//                        .as("w"))
+//                .groupBy(Expressions.$("w"))
+//                .select(Expressions.$("*"));
 
 //
 //        tableEnv.createTemporaryView("InputTable", tableResult);
 //        Table resultTable = tableEnv.sqlQuery("SELECT * FROM InputTable");
 
-        DataStream<Row> resultStream = tableEnv.toDataStream(tableResult);
-        resultStream.addSink(new RMQSink<Row>(connectionConfig, "sink", new SerializationSchema<Row>() {
-            @Override
-            public byte[] serialize(Row row) {
-                System.out.println(row);
-                return row.toString().getBytes();
-            }
-        })).uid("PrintSink").name("Print Sink").setParallelism(1);
+//        DataStream<Row> resultStream = tableEnv.toDataStream(tableResult);
+//        resultStream.addSink(new RMQSink<Row>(connectionConfig, "sink", new SerializationSchema<Row>() {
+//            @Override
+//            public byte[] serialize(Row row) {
+//                System.out.println(row);
+//                return row.toString().getBytes();
+//            }
+//        })).uid("PrintSink").name("Print Sink").setParallelism(1);
+
+        out.addSink(new RMQSink<>(connectionConfig, "sink", new SimpleStringSchema())).uid("PrintSink").name("Print Sink").setParallelism(1);
+
         try {
             env.getConfig().setGlobalJobParameters(parameters);
+            System.out.println("-------------------------------------------");
+            System.out.println(env.getExecutionPlan());
+            System.out.println("-------------------------------------------");
             env.execute();
         } catch (Exception e) {
         }
